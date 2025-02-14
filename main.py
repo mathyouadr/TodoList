@@ -1,34 +1,62 @@
 import sqlite3
-#connection to the database
+from nicegui import ui
+
 con = sqlite3.connect('task.db')
 cur = con.cursor()
 
-#creation of the table if she wasn't created
 cur.execute('CREATE TABLE IF NOT EXISTS Tache (id INTEGER PRIMARY KEY, what TEXT)')
 
-#Default menu
-while True: 
-    choix = input("Si vous voulez ajouter une tache saissez 1 , pour voir vos tache saisissez 2, pour supprimer une tache 3 et pour quitter saisissez 4 : ")
+columns = [
+    {'name': 'id', 'label': 'ID', 'field': 'id', 'required': True, 'align': 'left'},
+    {'name': 'task', 'label': 'Task', 'field': 'task', 'sortable': True},
+]
 
-    if choix == "1":
-        #add a task 
-        tasktoadd = input("Veuillez saisir la tache à ajouter : ")
-        cur.execute("INSERT INTO Tache (what) VALUES (?)", (tasktoadd,))
-        con.commit()
-        print("Tache ajoutée avec succès")
-    #print all tasks
-    elif choix == "2":
-        for row in cur.execute('SELECT * FROM tache'):
-            print(row)
-    elif choix == "3":
-        tasktodelete = input("Veuillez saisir l'id de la tache à supprimer : ")
-        cur.execute("DELETE FROM Tache WHERE id = ?", (tasktodelete,))
-        con.commit()
-        print("Tache supprimée avec succès")
+selectedtask = None
 
-    #shutdown the program
-    elif choix == "4":
-        print("Au revoir")
-        break
+def load_data():
+    rows = [
+        {'id': row[0], 'task': row[1]} 
+        for row in cur.execute('SELECT id, what FROM Tache')
+    ]
+    table.rows = rows
+
+def selectiontask(e):
+    ui.notify(f'selected: {e.selection}')
+    global selectedtask
+    selectedtask = e.selection[0]['id'] if e.selection else None
+    print(selectedtask)
+
+def deletetask():
+    if selectedtask is not None:
+        cur.execute("DELETE FROM Tache WHERE id = ?", (selectedtask,))
+        con.commit()
+        ui.notify("Task deleted successfully")
+        print("Task deleted successfully")
+        load_data()
     else:
-        print("Veuillez saisir 1,2,3 ou 4")
+        ui.notify("No task selected")
+        print("No task selected")
+
+def addtask():
+    global demandenomtask
+    global validationnewtask
+    demandenomtask = ui.input(label="Veuillez saisir la tache à ajouter : ", on_change=lambda e: print(e.value))
+    validationnewtask = ui.button('Valider', on_click=lambda e: addtasktodb(demandenomtask.value), color='green')
+
+def addtasktodb(tasktoadd):
+    cur.execute("INSERT INTO Tache (what) VALUES (?)", (tasktoadd,))
+    con.commit()
+    ui.notify("Task added successfully")
+    print("Task added successfully")
+    load_data()
+    demandenomtask.delete()
+    validationnewtask.delete()
+
+table = ui.table(columns=columns, rows=[], row_key='id', on_select=selectiontask, selection='single')
+delete_button = ui.button('Delete', on_click=deletetask, color='red')
+add_button = ui.button('Add',on_click=addtask,color='green')
+
+
+load_data()
+
+ui.run()
